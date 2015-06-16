@@ -1,11 +1,17 @@
+# Specify compiler
+COMP = clang++ -std=c++1y -O2
+
+# Specify target
 all: ride_the_bus
 
+# Build executable
 ride_the_bus: ride_the_bus.o
-	g++ ride_the_bus.o -std=c++1y -O2 -o ride_the_bus
+	$(COMP) ride_the_bus.o -o ride_the_bus
 
+# Build simulation object
 ride_the_bus.o: ride_the_bus.cpp
-	g++ -c ride_the_bus.cpp -std=c++1y -O2
+	$(COMP) -c ride_the_bus.cpp
 
+# Clean build
 clean:
 	rm *.o ride_the_bus
-
