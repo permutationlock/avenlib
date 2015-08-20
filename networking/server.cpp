@@ -1,7 +1,7 @@
 /*
  * server.cpp
  * Author: Aven Bross
- * Date: 5/23/2015
+ * Date: 8/20/2015
  * 
  * Description:
  * Multithreaded server to recieve and manage connections.
@@ -50,11 +50,11 @@ void Server::stop(){
     }
 }
 
+// Kill a connection by it's address
 void Server::kill(const sockaddr & connectionAddress){
     std::unique_lock<std::mutex> connectionLock(_mutex, std::defer_lock);
     connectionLock.lock();
-    std::cout << to_string(connectionAddress) << "\n";
-    std::cout << _connections.erase(to_string(connectionAddress));
+    _connections.erase(to_string(connectionAddress));
     connectionLock.unlock();
 }
 
@@ -79,6 +79,7 @@ Server::~Server() {
  * Sublcass of server representing a TCP server
  */
  
+// Server loop to handle incoming connections
 void TCPServer::loop(){
     std::unique_lock<std::mutex> connectionLock(_mutex, std::defer_lock);
     while(!_dead){
@@ -88,9 +89,10 @@ void TCPServer::loop(){
         int cSocket = skt_accept(_socket, &client_ip, &client_port);
         sockaddr_in address = skt_build_addr(client_ip, client_port);
         sockaddr client_addr = *((sockaddr *)(&address));
-        kill(client_addr);
+        
         connectionLock.lock();
         std::shared_ptr<TCPConnection> newCon = std::make_shared<TCPConnection>(cSocket, this, client_addr);
+        
         _connections[to_string(client_addr)] = newCon;
         connectionLock.unlock();
     }
@@ -102,6 +104,7 @@ void TCPServer::loop(){
  * Sublcass of server representing a UDP server
  */
  
+// Server loop to handle incoming messages
 void UDPServer::loop(){
     std::unique_lock<std::mutex> connectionLock(_mutex, std::defer_lock);
     sockaddr client_addr;      // IP & port of other end of connection
@@ -131,12 +134,13 @@ void UDPServer::loop(){
     }
 }
 
+
+// Converts sockaddr to string for hashing and comparison
 std::string to_string(const sockaddr & addr){
     int size = sizeof(sockaddr);
-    char bitstring[size+1];
+    char bitstring[size];
     std::memcpy(bitstring, &addr, sizeof(sockaddr));
-    bitstring[size] = '\0';
-    return std::string(bitstring);
+    return std::string(bitstring, size);
 }
 
 
@@ -151,7 +155,9 @@ Connection::Connection(int socket, Server * server, const sockaddr & toAddress):
     std::memcpy(&_toAddress, &toAddress, sizeof(sockaddr));
 }
 
+// Kills this connection
 void Connection::kill(){
+    // Call the server kill function on this address
     _server -> kill(_toAddress);
 }
 
@@ -162,7 +168,7 @@ void Connection::onOpen(){
 
 // Called when new message is recieved
 void Connection::onMessage(const std::string & message){
-    std::cout << "recieved: " << message << "\n";
+    std::cout << "socket: " << _socket << " sent: " << message << "\n";
 }
 
 // Declaring pure virtual destructor
@@ -179,16 +185,16 @@ Connection::~Connection(){
 // Constructor takes ptr to message handler
 TCPConnection::TCPConnection(int socket, Server * server, const sockaddr & toAddress): 
   _thread(&TCPConnection::loop, this), Connection(socket, server, toAddress) {
-    std::cout << "connection recieved\n";
+    std::cout << "opening socket: " << _socket << "\n";
     _thread.detach();
 }
 
 // Connection destructor
 TCPConnection::~TCPConnection(){
+    std::cout << "closing socket: " << _socket << "\n";
     _dead = true;
     skt_close(_socket);
     onClose();
-    std::cout << "Connection dead\n";
 }
 
 // Called on connection closure
@@ -225,7 +231,7 @@ void TCPConnection::loop(){
 void TCPConnection::fail(){
     _dead = true;
     kill();
-    std::cout << "Connection failed\n";
+    std::cout << "failed socket: " << _socket << "\n";
 }
 
 
@@ -234,8 +240,9 @@ void TCPConnection::fail(){
  * Connection class representing a UDP connection to remote host
  */
 
+// Create and detach the thread to handle this address
 UDPConnection::UDPConnection(int socket, Server * server, const sockaddr & toAddress): 
-  _thread(&UDPConnection::loop, this), Connection(socket,server, toAddress){
+  _thread(&UDPConnection::loop, this), Connection(socket, server, toAddress){
     std::cout << "connection recieved\n";
     _thread.detach();
 }
@@ -260,7 +267,7 @@ UDPConnection::~UDPConnection(){
     _dead = true;
     _cv.notify_all();
     onClose();
-    std::cout << "Connection dead\n";
+    std::cout << "connection dead\n";
 }
 
 // Called on connection closure

@@ -1,7 +1,7 @@
 /*
  * server.h
  * Author: Aven Bross
- * Date: 5/23/2015
+ * Date: 8/20/2015
  * 
  * Description:
  * Multithreaded server to recieve and manage connections.
@@ -170,7 +170,7 @@ protected:
     std::thread _thread;    // Thread to run connection
 };
 
-
+// Converts sockaddr to string for hashing and comparison
 std::string to_string(const sockaddr & addr);
 
 #endif
