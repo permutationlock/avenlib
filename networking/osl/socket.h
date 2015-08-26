@@ -21,6 +21,13 @@ SKT - simple TCP and UDP socket-based network communication routines.
 
 Written by Orion Sky Lawlor, olawlor@acm.org 1999-2006 (Public Domain)
 ****************************************************************/
+
+/* 
+ * Date: 8/25/2015
+ * Extended by Aven Bross to support recv_from and send_to functionality
+ * for UDP communication with specific addresses.
+*/
+
 #ifndef __SOCK_ROUTINES_H
 #define __SOCK_ROUTINES_H
 

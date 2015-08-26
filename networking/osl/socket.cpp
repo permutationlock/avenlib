@@ -10,6 +10,12 @@ as long as both this file and the caller are compiled the same way.
 
 Written by Orion Sky Lawlor, olawlor@acm.org 1999-2006 (Public Domain)
  *****************************************************************************/
+ 
+/* 
+ * Date: 8/25/2015
+ * Extended by Aven Bross to support recv_from and send_to functionality
+ * for UDP communication with specific addresses.
+*/
 
 #include "socket.h" /* osl/socket.h */
 
@@ -142,7 +148,7 @@ static int skt_should_retry(void)
 }
 
 /*Sleep on given read socket until msec or readable*/
-int skt_select1(SOCKET fd,int msec)
+int skt_select1(SOCKET fd, int msec)
 {
   int sec=msec/1000;
   fd_set  rfds;
@@ -191,7 +197,7 @@ skt_ip_t skt_my_ip(void)
 }
 
 /* Parse an IP address like "137.229.25.100" */
-static int skt_parse_dotted(const char *str,skt_ip_t *ret)
+static int skt_parse_dotted(const char *str, skt_ip_t *ret)
 {
   unsigned int i;
   int v;
@@ -240,7 +246,7 @@ skt_ip_t skt_lookup_ip(const char *name)
 }
 
 /*Write as dotted decimal*/
-char *skt_print_ip(char *dest,skt_ip_t addr)
+char *skt_print_ip(char *dest, skt_ip_t addr)
 {
   char *o=dest;
   unsigned int i;
@@ -359,7 +365,7 @@ SOCKET skt_server(unsigned int *port)
   return skt_server_ip(port,NULL);
 }
 
-SOCKET skt_server_ip(unsigned int *port,skt_ip_t *ip)
+SOCKET skt_server_ip(unsigned int *port, skt_ip_t *ip)
 {
   SOCKET             ret;
   socklen_t          len;
@@ -390,7 +396,7 @@ retry:
   return ret;
 }
 
-SOCKET skt_accept(SOCKET src_fd,skt_ip_t *pip, unsigned int *port)
+SOCKET skt_accept(SOCKET src_fd, skt_ip_t *pip, unsigned int *port)
 {
   socklen_t len;
   struct sockaddr_in addr={0};
@@ -445,7 +451,7 @@ void skt_setSockBuf(SOCKET skt, int bufsize)
 	skt_abort(93496,"Error on RCVBUF sockopt for datagram socket.");
 }
 
-int skt_recvN(SOCKET hSocket,void *buff,int nBytes)
+int skt_recvN(SOCKET hSocket, void *buff, int nBytes)
 {
   int nLeft,nRead;
   char *pBuff=(char *)buff;
@@ -473,7 +479,7 @@ int skt_recvN(SOCKET hSocket,void *buff,int nBytes)
   return 0;
 }
 
-int skt_sendN(SOCKET hSocket,const void *buff,int nBytes)
+int skt_sendN(SOCKET hSocket, const void *buff, int nBytes)
 {
   int nLeft,nWritten;
   const char *pBuff=(const char *)buff;
@@ -504,7 +510,7 @@ int skt_sendN(SOCKET hSocket,const void *buff,int nBytes)
 */
 #define skt_sendV_max (16*1024)
 
-int skt_sendV(SOCKET fd,int nBuffers,const void **bufs,int *lens)
+int skt_sendV(SOCKET fd, int nBuffers, const void **bufs,int *lens)
 {
 	int b,len=0;
 	for (b=0;b<nBuffers;b++) len+=lens[b];

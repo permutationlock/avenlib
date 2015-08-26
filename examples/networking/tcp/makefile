@@ -17,12 +17,12 @@ network_test.o: network_test.cpp
 	$(COMP) -c network_test.cpp -g
 
 # Build server library object
-server.o: ../../networking//server.cpp
-	$(COMP) -c ../../networking//server.cpp -g
+server.o: ../../../networking/server.cpp
+	$(COMP) -c ../../../networking/server.cpp -g
     
 # Build socket library object
-socket.o: ../../networking//osl/socket.cpp
-	$(COMP) -c ../../networking/osl/socket.cpp -g
+socket.o: ../../../networking/osl/socket.cpp
+	$(COMP) -c ../../../networking/osl/socket.cpp -g
 
 # Clean build
 clean:

@@ -24,6 +24,8 @@
 
 // Forward declaration
 class Connection;
+class TCPConnection;
+class UDPConnection;
 
 // Virtual server class representing a multithreaded server
 class Server{
@@ -37,7 +39,7 @@ public:
     // Stop server
     void stop();
     
-    // Kill a connection
+    // Kill a connection by address
     void kill(const sockaddr & connectionAddress);
     
     // Check server status
@@ -48,7 +50,7 @@ public:
     
 protected:
     // Main server loop
-    virtual void loop();
+    virtual void loop() = 0;
     
     // List containing server connection threads
     std::unordered_map<std::string,std::shared_ptr<Connection>> _connections;
@@ -68,6 +70,9 @@ public:
 protected:
     // TCP server loop
     virtual void loop();
+    
+    // Make a new connection for the server
+    virtual std::shared_ptr<TCPConnection> makeConnection(int socket, const sockaddr & clientAddress);
 };
 
 // Subclass of server that handles UDP connections
@@ -79,6 +84,9 @@ public:
 protected:
     // UDP server loop
     virtual void loop();
+    
+    // Make a new UDP connection for the server
+    virtual std::shared_ptr<UDPConnection> makeConnection(int socket, const sockaddr & clientAddress);
 };
 
 
@@ -90,6 +98,8 @@ public:
     
     // Send message to connection recipient, blocks waiting for send
     virtual void sendMessage(const std::string & message) = 0;
+    
+    void start();
     
     void kill();
     
@@ -103,6 +113,12 @@ protected:
     // Called when new message is recieved
     virtual void onMessage(const std::string & message);
     
+    // Called on connection closure
+    virtual void onClose();
+    
+    // Connection failure routine
+    virtual void fail() = 0;
+    
     // Pointer to server running this connection
     Server * _server;
     
@@ -112,6 +128,7 @@ protected:
     sockaddr _toAddress; // Connection address
     int _socket; // Connection socket
     bool _dead; // Connection status
+    std::thread _thread;    // Thread to run connection
 };
 
 
@@ -124,19 +141,14 @@ public:
     // Send message to connection recipient
     virtual void sendMessage(const std::string & message);
     
-    ~TCPConnection();
+    virtual ~TCPConnection();
     
 protected:
-    // Called on connection closure
-    virtual void onClose();
-    
     // Calls onMessage when new messages are recieved then blocks
     virtual void loop();
     
     // Connection failure routine
     virtual void fail();
-    
-    std::thread _thread;    // Thread to run connection
 };
 
 
@@ -150,14 +162,11 @@ public:
     void push(const std::string & message);
     
     // Send message to connection recipient
-    void sendMessage(const std::string & message);
+    virtual void sendMessage(const std::string & message);
     
-    ~UDPConnection();
+    virtual ~UDPConnection();
     
 protected:
-    // Called on connection closure
-    virtual void onClose();
-    
     // Calls onMessage when new messages are recieved then blocks
     virtual void loop();
     
@@ -167,7 +176,6 @@ protected:
     std::mutex _messageMutex;   // Mutex for message recieves
     std::condition_variable _cv; // Condition variable for message recieves
     std::queue<std::string> _messageQueue;   // Queue of new messages
-    std::thread _thread;    // Thread to run connection
 };
 
 // Converts sockaddr to string for hashing and comparison

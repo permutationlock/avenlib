@@ -63,11 +63,6 @@ bool Server::isDead(){
     return _dead;
 }
 
-// Server loop
-void Server::loop(){
-    // Do nothing, overload in subclasses
-}
-
 // Destructor
 Server::~Server() {
     stop();
@@ -78,21 +73,26 @@ Server::~Server() {
  * class TCPServer : Server
  * Sublcass of server representing a TCP server
  */
- 
+
+// Creates a new connection for the given socket and address
+std::shared_ptr<TCPConnection> TCPServer::makeConnection(int socket, const sockaddr & clientAddress){
+    return std::make_shared<TCPConnection>(socket, this, clientAddress);
+}
+
 // Server loop to handle incoming connections
 void TCPServer::loop(){
     std::unique_lock<std::mutex> connectionLock(_mutex, std::defer_lock);
     while(!_dead){
-        std::cout << "Looking for connection!\n";
         skt_ip_t client_ip;      // IP & port of other end of connection
         unsigned int client_port;
+        
         int cSocket = skt_accept(_socket, &client_ip, &client_port);
         sockaddr_in address = skt_build_addr(client_ip, client_port);
         sockaddr client_addr = *((sockaddr *)(&address));
         
         connectionLock.lock();
-        std::shared_ptr<TCPConnection> newCon = std::make_shared<TCPConnection>(cSocket, this, client_addr);
-        
+        std::shared_ptr<TCPConnection> newCon = makeConnection(cSocket, client_addr);
+        newCon -> start();
         _connections[to_string(client_addr)] = newCon;
         connectionLock.unlock();
     }
@@ -103,6 +103,11 @@ void TCPServer::loop(){
  * class UDPServer : Server
  * Sublcass of server representing a UDP server
  */
+ 
+// Creates a new connection for the given socket and address
+std::shared_ptr<UDPConnection> UDPServer::makeConnection(int socket, const sockaddr & clientAddress){
+    return std::make_shared<UDPConnection>(socket, this, clientAddress);
+}
  
 // Server loop to handle incoming messages
 void UDPServer::loop(){
@@ -120,13 +125,17 @@ void UDPServer::loop(){
 		    if (c=='\r') continue; /* will be CR/LF; wait for LF */
 		    else{
 		        connectionLock.lock();
+		        
 		        // Create connection if needed
 		        if(_connections.count(to_string(client_addr)) == 0){
-		            std::shared_ptr<UDPConnection> newCon = std::make_shared<UDPConnection>(_socket, this, client_addr);
+		            std::shared_ptr<UDPConnection> newCon = makeConnection(_socket, client_addr);
+		            newCon -> start();
 		            _connections[to_string(client_addr)] = newCon;
 		        }
+		        
 		        // Push the message to the connection for handling
 		        ((UDPConnection*)(_connections[to_string(client_addr)].get())) -> push(str);
+		        
 		        connectionLock.unlock();
 		    }
 	    }
@@ -155,6 +164,12 @@ Connection::Connection(int socket, Server * server, const sockaddr & toAddress):
     std::memcpy(&_toAddress, &toAddress, sizeof(sockaddr));
 }
 
+// Start the connection loop
+void Connection::start(){
+    _thread = std::thread(&Connection::loop, this);
+    _thread.detach();
+}
+
 // Kills this connection
 void Connection::kill(){
     // Call the server kill function on this address
@@ -171,6 +186,11 @@ void Connection::onMessage(const std::string & message){
     std::cout << "socket: " << _socket << " sent: " << message << "\n";
 }
 
+// Called on connection closure
+void Connection::onClose(){
+    // Do nothing, overload in subclasses
+}
+
 // Declaring pure virtual destructor
 Connection::~Connection(){
     _dead = true;
@@ -184,9 +204,8 @@ Connection::~Connection(){
 
 // Constructor takes ptr to message handler
 TCPConnection::TCPConnection(int socket, Server * server, const sockaddr & toAddress): 
-  _thread(&TCPConnection::loop, this), Connection(socket, server, toAddress) {
+  Connection(socket, server, toAddress) {
     std::cout << "opening socket: " << _socket << "\n";
-    _thread.detach();
 }
 
 // Connection destructor
@@ -195,11 +214,6 @@ TCPConnection::~TCPConnection(){
     _dead = true;
     skt_close(_socket);
     onClose();
-}
-
-// Called on connection closure
-void TCPConnection::onClose(){
-    // Do nothing, overload in subclasses
 }
 
 // Send message to connection recipient, blocks waiting for send
@@ -214,6 +228,9 @@ void TCPConnection::loop(){
     const char *term=" \t\r\n";
     std::string message = "";
     char c; 
+    
+    onOpen();
+    
     while(!_dead){
 	    if(skt_recvN(_socket,&c,1) != 0){
 	        fail(); // Connection failure
@@ -223,7 +240,9 @@ void TCPConnection::loop(){
 		    onMessage(message);
 		    message = "";
 	    }
-	    else message+=c; // normal character
+	    else{
+	        message+=c; // normal character
+        }
     }
 }
 
@@ -242,9 +261,8 @@ void TCPConnection::fail(){
 
 // Create and detach the thread to handle this address
 UDPConnection::UDPConnection(int socket, Server * server, const sockaddr & toAddress): 
-  _thread(&UDPConnection::loop, this), Connection(socket, server, toAddress){
+  Connection(socket, server, toAddress){
     std::cout << "connection recieved\n";
-    _thread.detach();
 }
 
 // Called to push messages to this connection
@@ -270,14 +288,12 @@ UDPConnection::~UDPConnection(){
     std::cout << "connection dead\n";
 }
 
-// Called on connection closure
-void UDPConnection::onClose(){
-    // Do nothing, overload in subclasses
-}
-
 // Loop to handle connection and recieve messages
 void UDPConnection::loop(){
     std::unique_lock<std::mutex> recieveLock(_messageMutex, std::defer_lock);
+    
+    onOpen();
+    
     while(!_dead){
         while(_messageQueue.size() > 0){
             onMessage(_messageQueue.front());

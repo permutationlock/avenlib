@@ -6,24 +6,21 @@
  * Testing AES functionality
  */
  
-#include "../../networking/server.h"
 #include <iostream>
-#include "../../networking/osl/socket.h"
+#include "../../../networking/osl/socket.h"
 
 using std::cout;
 using std::cin;
 
 int main(){
-    TCPServer s(9999);
-    s.start();
     skt_ip_t ip = { 127, 0, 0, 1 };
     unsigned int port = 9999;
     
+    std::string msg = "hiiii!";
+    int socket = skt_connect(ip, port, 5);
     while(1){
-        if(s.isDead()){
-            s.start();
-        }
-        std::cin.ignore();
+        cin >> msg;
+        skt_sendN(socket, msg.c_str(), msg.size()+1);
     }
     return 0;
 }
