@@ -33,10 +33,6 @@ public:
     virtual void sendMessage(const std::string & message);
     
 protected:
-    
-    // Parse TCP message and handle websocket responsse
-    virtual void onMessage(const std::string & message);
-    
     // Handle websocket message from client
     virtual void loop();
     

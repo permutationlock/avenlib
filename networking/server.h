@@ -99,8 +99,10 @@ public:
     // Send message to connection recipient, blocks waiting for send
     virtual void sendMessage(const std::string & message) = 0;
     
+    // Start the connection loop
     void start();
     
+    // Kills this connection
     void kill();
     
     // Destructor

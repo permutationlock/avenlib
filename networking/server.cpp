@@ -213,7 +213,6 @@ TCPConnection::~TCPConnection(){
     std::cout << "closing socket: " << _socket << "\n";
     _dead = true;
     skt_close(_socket);
-    onClose();
 }
 
 // Send message to connection recipient, blocks waiting for send
@@ -249,6 +248,7 @@ void TCPConnection::loop(){
 // Connection failure routine
 void TCPConnection::fail(){
     _dead = true;
+    onClose();
     kill();
     std::cout << "failed socket: " << _socket << "\n";
 }

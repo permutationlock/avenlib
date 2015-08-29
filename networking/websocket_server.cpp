@@ -8,6 +8,7 @@
 */
 
 #include "websocket_server.h"
+//#include <bitset>
 
 /*
  * class WebSocketServer : TCPServer
@@ -30,8 +31,8 @@ const std::string WebSocketConnection::_magicString = "258EAFA5-E914-47DA-95CA-C
 
 // Constructor, does any initializations necessary then calls parent constructor
 WebSocketConnection::WebSocketConnection(int socket, Server * server, const sockaddr & toAddress):
-  TCPConnection(socket, server, toAddress){
-    std::cout << "WEBSOCKET CREATED\n";
+  _handshake(false), TCPConnection(socket, server, toAddress){
+    //std::cout << "WEBSOCKET CREATED\n";
 }
  
 // Send message via websocket protocol
@@ -41,22 +42,37 @@ void WebSocketConnection::sendMessage(const std::string & message){
         return;
     }
 }
-    
-// Parse TCP message and handle websocket responsse
-void WebSocketConnection::onMessage(const std::string & message){
-    std::cout << message << "\n";
-}
 
 // Handle websocket message from client
 void WebSocketConnection::loop(){
-    std::cout << "WEBSOCKET LOOP\n";
+    //std::cout << "WEBSOCKET LOOP\n";
     const char *term=" \t\r\n";
-    char c;
-    std::vector<std::string> buffer;
+    
+    // State of message reception
+    int state = 0;
+    
+    // Frame info
+    bool fin = false;
+    bool mask = false;
+    int maskData = 0;
+    unsigned int opcode = 0;
+    unsigned int payloadLength = 0;
+    bool binary = false;
+    
+    // Current message
     std::string message = "";
     
+    // Buffer to store HTTP messages
+    std::vector<std::string> buffer;
+    
+    // Connection open
+    onOpen();
+    
+    // Loop until connection dies
     while(!_dead){
         if(!_handshake){
+            // Read characters from HTTP handshake request
+            char c;
             if(skt_recvN(_socket,&c,1) != 0){
                 fail(); // Connection failure
             }
@@ -75,7 +91,154 @@ void WebSocketConnection::loop(){
             }
         }
         else{
+            //std::cout << "Reading frame info:\n";
+            // Read first byte
+            unsigned char byte;
+            if(skt_recvN(_socket, &byte, sizeof(byte)) != 0){
+                fail(); // Connection failure
+            }
             
+            // Check if connection died while reading
+            if(_dead) break;
+
+            // Sort out frame info from bits
+            fin = (byte >> 7);
+            opcode = byte & 0xF; // We skip the three RSV bits
+            
+            //std::bitset<8> binary(byte);
+            
+            //std::cout << binary << "\n";
+            //std::cout << "    fin = " << (int)fin << "\n";
+            //std::cout << "    opcode = " << (int)opcode << "\n";
+            
+            if(skt_recvN(_socket, &byte, 1) != 0){
+                fail(); // Connection failure
+            }
+            
+            // Check if connection died while reading
+            if(_dead) break;
+            
+            // Sort out frame info from bits
+            mask = byte >> 7;
+            payloadLength = byte & 0x7F;
+            
+            //std::cout << "    mask = " << (int)mask << "\n";
+            //std::cout << "    payloadLength = " << (int)payloadLength << "\n";
+            
+            // Read extended payload length if necessary
+            if(payloadLength > 125){
+                if(payloadLength = 126){
+                    // Have to read bytes individually to fix byte endianness
+                    unsigned char byte;
+                    if(skt_recvN(_socket, &byte, 1) != 0){
+                        fail(); // Connection failure
+                    }
+                    
+                    // Check if connection died while reading
+                    if(_dead) break;
+                    
+                    payloadLength = ((int)byte << 8);
+                    
+                    if(skt_recvN(_socket, &byte, 1) != 0){
+                        fail(); // Connection failure
+                    }
+                    
+                    // Check if connection died while reading
+                    if(_dead) break;
+                    
+                    payloadLength += byte;
+                    
+                }
+                else{
+                    // Supported by standard, but too big for memory
+                    std::cout << "Unsupported payload length\n";
+                }
+            }
+            
+            //std::cout << "    amendedPayloadLength = " << (int)payloadLength << "\n";
+            
+            // Read mask for masked data
+            if(mask){
+                if(skt_recvN(_socket, &maskData, sizeof(maskData)) != 0){
+                    fail(); // Connection failure
+                }
+                
+                // Check if connection died while reading
+                if(_dead) break;
+            }
+            
+            // Read payload
+            char recieved[payloadLength];
+            if(skt_recvN(_socket, &recieved, payloadLength) != 0){
+                fail(); // Connection failure
+            }
+            
+            // Check if connection died while reading
+            if(_dead) break;
+            
+            // Apply mask for masked data
+            if(mask){
+                // Treat maskData int as character array for masking
+                char * maskArray = (char *)(&maskData);
+                for(int i=0; i<payloadLength; i++){
+                    recieved[i] = recieved[i] ^ maskArray[i%4];
+                }
+            }
+            
+            // Append recieved data to current message
+            message.append(std::string(recieved, payloadLength));
+            
+            // Respond to frame based upon fin bit and opcode
+            if(fin){
+                if(opcode == 0x1 || (opcode == 0x0 && binary == false)){
+                    // Text message
+                    onMessage(message);
+                }
+                else if(opcode == 0x2 || (opcode == 0x0 && binary == true)){
+                    // Binary message
+                    onMessage(message);
+                }
+                else if(opcode == 0x8){
+                    fail();
+                }
+                else if(opcode == 0x9){
+                    std::cout << "Ping recieved\n";
+                    // Send pong
+                }
+                else if(opcode == 0xA){
+                    std::cout << "Pong recieved\n";
+                }
+                else{
+                    // Some non message opcode for finished message
+                    std::cout << "Invalid opcode for fin=1\n";
+                }
+                message = "";
+            }
+            else{
+                // Message not finished
+                if(opcode == 1){
+                    // Text message
+                    binary = false;
+                }
+                else if(opcode == 2){
+                    // Binary message
+                    binary = true;
+                }
+                else if(opcode == 0x8){
+                    fail();
+                }
+                else if(opcode == 0x9){
+                    std::cout << "Ping recieved\n";
+                    // Send pong
+                }
+                else if(opcode == 0xA){
+                    std::cout << "Pong recieved\n";
+                }
+                else if(opcode != 0){
+                    // Some non continue opcode for unfinished message
+                    std::cout << "Invalid opcode for fin=0\n";
+                }
+            }
         }
     }
 }
@@ -96,6 +259,7 @@ std::string WebSocketConnection::base64Encode(const std::string & str){
     bool done = false;
     int res = 0;
     
+    // Encode data via conversion BIO
     while(!done){
         res = BIO_write(b64, (unsigned char *)str.c_str(), str.size());
 
@@ -112,6 +276,7 @@ std::string WebSocketConnection::base64Encode(const std::string & str){
         }
     }
     
+    // Free BIO memory
     BIO_flush(b64);
     
     // Grab pointer to results
