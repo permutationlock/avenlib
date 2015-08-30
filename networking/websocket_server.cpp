@@ -8,7 +8,7 @@
 */
 
 #include "websocket_server.h"
-//#include <bitset>
+#include <bitset>
 
 /*
  * class WebSocketServer : TCPServer
@@ -43,7 +43,7 @@ void WebSocketConnection::sendMessage(const std::string & message){
     }
     
     unsigned int bytesSent = 0;
-    while(bytesSent < message.size()){
+    while(bytesSent < message.size() && !_dead){
         if(bytesSent == 0){
             if(message.size() > USHRT_MAX){
                 sendFrame(false, (unsigned char)(0x1), message.substr(0, USHRT_MAX));
@@ -218,10 +218,12 @@ void WebSocketConnection::loop(){
                 if(opcode == 0x1 || (opcode == 0x0 && binary == false)){
                     // Text message
                     onMessage(message);
+                    sendMessage(message);
                 }
                 else if(opcode == 0x2 || (opcode == 0x0 && binary == true)){
                     // Binary message
                     onMessage(message);
+                    sendMessage(message);
                 }
                 else if(opcode == 0x8){
                     fail();
@@ -398,25 +400,23 @@ void WebSocketConnection::sendFrame(bool fin, unsigned char opcode, const std::s
         byte = 0x7E;
         frame.push_back(byte);
         
-        // Append first byte of payload length
-        byte = (char)payload.size();
-        frame.push_back(byte);
-        
         // Append second byte of payload length
         byte = (char)(payload.size() >> 8);
+        frame.push_back(byte);
+        
+        // Append first byte of payload length
+        byte = (char)payload.size();
         frame.push_back(byte);
     }
     
     frame.append(payload);
     
-    if(skt_sendN(_socket, frame.c_str(), frame.size()) != 0){
-        fail();
-    }
+    sendTCP(frame);
 }
 
 // Send error message to client
 void WebSocketConnection::sendTCP(const std::string & message){
-    if(skt_sendN(_socket, message.c_str(), message.size()+1) != 0){
+    if(skt_sendN(_socket, message.c_str(), message.size()) != 0){
         fail();
     }
 }
