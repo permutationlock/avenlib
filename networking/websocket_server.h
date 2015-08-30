@@ -12,6 +12,7 @@
 #include <openssl/sha.h>
 #include <openssl/bio.h>
 #include <openssl/evp.h>
+#include <climits>
 #include "server.h"
 
 // Subclass of TCPServer that recieves and handles websocket connections
@@ -47,6 +48,9 @@ protected:
     
     // Send message via raw TCP
     void sendTCP(const std::string & message);
+    
+    // Sends a websocket frame
+    void sendFrame(bool fin, unsigned char opcode, const std::string & payload);
     
     bool _handshake;
     static const std::string _magicString;  // Magic string constant for finding handshake keys

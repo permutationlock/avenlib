@@ -33,13 +33,38 @@ const std::string WebSocketConnection::_magicString = "258EAFA5-E914-47DA-95CA-C
 WebSocketConnection::WebSocketConnection(int socket, Server * server, const sockaddr & toAddress):
   _handshake(false), TCPConnection(socket, server, toAddress){
     //std::cout << "WEBSOCKET CREATED\n";
-}
+}                                   
  
 // Send message via websocket protocol
 void WebSocketConnection::sendMessage(const std::string & message){
     if(!_handshake){
         // No handshake, cannot send via websocket
         return;
+    }
+    
+    unsigned int bytesSent = 0;
+    while(bytesSent < message.size()){
+        if(bytesSent == 0){
+            if(message.size() > USHRT_MAX){
+                sendFrame(false, (unsigned char)(0x1), message.substr(0, USHRT_MAX));
+                bytesSent += USHRT_MAX;
+            }
+            else{
+                sendFrame(true, (unsigned char)(0x1), message);
+                bytesSent += message.size();
+            }
+        }
+        else{
+            unsigned int bytesLeft = message.size() - bytesSent;
+            if(bytesLeft > USHRT_MAX){
+                sendFrame(false, (unsigned char)(0x0), message.substr(bytesSent, bytesSent + USHRT_MAX));
+                bytesSent += USHRT_MAX;
+            }
+            else{
+                sendFrame(true, (unsigned char)(0x0), message.substr(bytesSent, bytesSent + bytesLeft));
+                bytesSent += bytesLeft;
+            }
+        }
     }
 }
 
@@ -352,6 +377,41 @@ bool WebSocketConnection::parseHandshake(const std::vector<std::string> & buffer
     onOpen();
     
     return true;
+}
+
+// Send a websocket frame with the given parameters
+void WebSocketConnection::sendFrame(bool fin, unsigned char opcode, const std::string & payload){
+    std::string frame = "";
+    char byte;
+    
+    byte = fin ? (0x80) : (0x00);   // Set fin bit
+    byte = byte | opcode;   // Set opcode as provided
+    frame.push_back(byte);
+    
+    if(payload.size() < 125){
+        byte = (char)payload.size(); //
+        byte = byte & 0x7F; // Make sure mask bit is not set
+        frame.push_back(byte);
+    }
+    else{
+        // Sort out frame info from bits
+        byte = 0x7E;
+        frame.push_back(byte);
+        
+        // Append first byte of payload length
+        byte = (char)payload.size();
+        frame.push_back(byte);
+        
+        // Append second byte of payload length
+        byte = (char)(payload.size() >> 8);
+        frame.push_back(byte);
+    }
+    
+    frame.append(payload);
+    
+    if(skt_sendN(_socket, frame.c_str(), frame.size()) != 0){
+        fail();
+    }
 }
 
 // Send error message to client
