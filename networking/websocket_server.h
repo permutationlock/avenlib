@@ -7,8 +7,6 @@
  * Multithreaded websocket server.
 */
 
-#include <regex>
-#include <sstream>
 #include <openssl/sha.h>
 #include <openssl/bio.h>
 #include <openssl/evp.h>
@@ -46,11 +44,11 @@ protected:
     // Parse handshake and respond if correct
     bool parseHandshake(const std::vector<std::string> & buffer);
     
-    // Send message via raw TCP
-    void sendTCP(const std::string & message);
-    
     // Sends a websocket frame
     void sendFrame(bool fin, unsigned char opcode, const std::string & payload);
+    
+    // Send message via raw TCP
+    void sendTCP(const std::string & message);
     
     bool _handshake;
     static const std::string _magicString;  // Magic string constant for finding handshake keys

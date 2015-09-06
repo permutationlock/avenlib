@@ -8,7 +8,6 @@
 */
 
 #include "websocket_server.h"
-#include <bitset>
 
 /*
  * class WebSocketServer : TCPServer
@@ -382,6 +381,7 @@ bool WebSocketConnection::parseHandshake(const std::vector<std::string> & buffer
 }
 
 // Send a websocket frame with the given parameters
+// Must be called with payload.size() <= USHRT_MAX
 void WebSocketConnection::sendFrame(bool fin, unsigned char opcode, const std::string & payload){
     std::string frame = "";
     char byte;
@@ -416,6 +416,7 @@ void WebSocketConnection::sendFrame(bool fin, unsigned char opcode, const std::s
 
 // Send error message to client
 void WebSocketConnection::sendTCP(const std::string & message){
+    // Don't add +1 to size, we don't want to send the c string end character
     if(skt_sendN(_socket, message.c_str(), message.size()) != 0){
         fail();
     }
