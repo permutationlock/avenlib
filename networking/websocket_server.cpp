@@ -35,36 +35,46 @@ WebSocketConnection::WebSocketConnection(int socket, Server * server, const sock
 }                                   
  
 // Send message via websocket protocol
-void WebSocketConnection::sendMessage(const std::string & message){
+bool WebSocketConnection::sendMessage(const std::string & message){
     if(!_handshake){
         // No handshake, cannot send via websocket
-        return;
+        return false;
     }
     
     unsigned int bytesSent = 0;
     while(bytesSent < message.size() && !_dead){
         if(bytesSent == 0){
             if(message.size() > USHRT_MAX){
-                sendFrame(false, (unsigned char)(0x1), message.substr(0, USHRT_MAX));
+                if(!sendFrame(false, (unsigned char)(0x1), message.substr(0, USHRT_MAX))){
+                    return false;
+                }
                 bytesSent += USHRT_MAX;
             }
             else{
-                sendFrame(true, (unsigned char)(0x1), message);
+                if(!sendFrame(true, (unsigned char)(0x1), message)){
+                    return false;
+                }
                 bytesSent += message.size();
             }
         }
         else{
             unsigned int bytesLeft = message.size() - bytesSent;
             if(bytesLeft > USHRT_MAX){
-                sendFrame(false, (unsigned char)(0x0), message.substr(bytesSent, bytesSent + USHRT_MAX));
+                if(!sendFrame(false, (unsigned char)(0x0), message.substr(bytesSent, bytesSent + USHRT_MAX))){
+                    return false;
+                }
                 bytesSent += USHRT_MAX;
             }
             else{
-                sendFrame(true, (unsigned char)(0x0), message.substr(bytesSent, bytesSent + bytesLeft));
+                if(!sendFrame(true, (unsigned char)(0x0), message.substr(bytesSent, bytesSent + bytesLeft))){
+                    return false;
+                }
                 bytesSent += bytesLeft;
             }
         }
     }
+    
+    return true;
 }
 
 // Handle websocket message from client
@@ -382,7 +392,7 @@ bool WebSocketConnection::parseHandshake(const std::vector<std::string> & buffer
 
 // Send a websocket frame with the given parameters
 // Must be called with payload.size() <= USHRT_MAX
-void WebSocketConnection::sendFrame(bool fin, unsigned char opcode, const std::string & payload){
+bool WebSocketConnection::sendFrame(bool fin, unsigned char opcode, const std::string & payload){
     std::string frame = "";
     char byte;
     
@@ -411,13 +421,15 @@ void WebSocketConnection::sendFrame(bool fin, unsigned char opcode, const std::s
     
     frame.append(payload);
     
-    sendTCP(frame);
+    return sendTCP(frame);
 }
 
 // Send error message to client
-void WebSocketConnection::sendTCP(const std::string & message){
+bool WebSocketConnection::sendTCP(const std::string & message){
     // Don't add +1 to size, we don't want to send the c string end character
     if(skt_sendN(_socket, message.c_str(), message.size()) != 0){
         fail();
+        return false;
     }
+    return true;
 }

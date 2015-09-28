@@ -216,10 +216,12 @@ TCPConnection::~TCPConnection(){
 }
 
 // Send message to connection recipient, blocks waiting for send
-void TCPConnection::sendMessage(const std::string & message){
+bool TCPConnection::sendMessage(const std::string & message){
     if(skt_sendN(_socket, message.c_str(), message.size()+1) != 0){
         fail();
+        return false;
     }
+    return true;
 }
 
 // Loop to handle connection and recieve messages
@@ -273,11 +275,13 @@ void UDPConnection::push(const std::string & message){
 }
 
 // Send message to connection recipient, blocks waiting for send
-void UDPConnection::sendMessage(const std::string & message){
+bool UDPConnection::sendMessage(const std::string & message){
     if(skt_sendN_to(_socket, message.c_str(), message.size()+1,
                     &_toAddress, sizeof(_toAddress)) != 0){
         fail();
+        return false;
     }
+    return true;
 }
 
 // Connection destructor

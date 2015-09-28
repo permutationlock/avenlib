@@ -29,7 +29,7 @@ public:
     WebSocketConnection(int socket, Server * server, const sockaddr & toAddress);
 
     // Send message via websocket protocol
-    virtual void sendMessage(const std::string & message);
+    virtual bool sendMessage(const std::string & message);
     
 protected:
     // Handle websocket message from client
@@ -45,10 +45,10 @@ protected:
     bool parseHandshake(const std::vector<std::string> & buffer);
     
     // Sends a websocket frame
-    void sendFrame(bool fin, unsigned char opcode, const std::string & payload);
+    bool sendFrame(bool fin, unsigned char opcode, const std::string & payload);
     
     // Send message via raw TCP
-    void sendTCP(const std::string & message);
+    bool sendTCP(const std::string & message);
     
     bool _handshake;
     static const std::string _magicString;  // Magic string constant for finding handshake keys

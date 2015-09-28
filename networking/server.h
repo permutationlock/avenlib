@@ -16,6 +16,7 @@
 #include <memory>
 #include <cstring>
 #include <iostream>
+#include <map>
 #include <unordered_map>
 #include <queue>
 #include <mutex>
@@ -97,7 +98,7 @@ public:
     Connection(int socket, Server * server, const sockaddr & toAddress);
     
     // Send message to connection recipient, blocks waiting for send
-    virtual void sendMessage(const std::string & message) = 0;
+    virtual bool sendMessage(const std::string & message) = 0;
     
     // Start the connection loop
     void start();
@@ -141,7 +142,7 @@ public:
     TCPConnection(int socket, Server * server, const sockaddr & toAddress);
     
     // Send message to connection recipient
-    virtual void sendMessage(const std::string & message);
+    virtual bool sendMessage(const std::string & message);
     
     virtual ~TCPConnection();
     
@@ -164,7 +165,7 @@ public:
     void push(const std::string & message);
     
     // Send message to connection recipient
-    virtual void sendMessage(const std::string & message);
+    virtual bool sendMessage(const std::string & message);
     
     virtual ~UDPConnection();
     
