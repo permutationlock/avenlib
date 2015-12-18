@@ -1,5 +1,5 @@
 # Specify compiler
-COMP = clang++ -std=c++1y -O2
+COMP = clang++ -std=c++1y -O2 -Wall -Wno-unused-result
 
 # Specify target
 all: network_test test_client

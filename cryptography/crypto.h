@@ -14,6 +14,12 @@
 #include <openssl/ecdh.h>
 #include <iostream>
 #include <string>
+#include <cassert>
+#include <limits>
+#include <stdexcept>
+#include <cctype>
+
+#include <ios>
 
 // Class that wraps openssl and performs ECDH exchange
 class ECDH {
@@ -49,8 +55,11 @@ protected:
 };
 
 
-// Encode string in base 64
+// Encode data in base 64
 std::string base64Encode(const std::string & str);
+
+// Decode base64 string to binary data
+std::string base64Decode(const std::string & str);
 
 // Compute sha1 hash of string
 std::string sha1(const std::string & str);

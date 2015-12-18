@@ -1,0 +1,31 @@
+<html>
+<head>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+</head>
+<body>
+<div id='hist' style='border:3px solid black; padding: 5px;'>
+</div>
+<input type='text'/ id='message'>
+<input type='button' value='Send' onclick='sendMessage()'/>
+</body>
+<script>
+ws = new WebSocket("ws://localhost:9999/");
+function sendMessage(){
+    msg = document.getElementById('message').value;
+    ws.send(msg)
+    document.getElementById('hist').innerHTML+=msg+'<br/>';
+    document.getElementById('message').value = '';
+}
+
+$('#message').keydown(function (event) {
+    var keypressed = event.keyCode || event.which;
+    if (keypressed == 13) {
+        sendMessage()
+    }
+});
+
+ws.onmessage = function(e){
+    document.getElementById('hist').innerHTML+=e.data+'<br/>'
+}
+</script>
+</html>

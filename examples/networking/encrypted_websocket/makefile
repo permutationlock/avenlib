@@ -1,5 +1,5 @@
 # Specify compiler
-COMP = g++ -lssl -lcrypto -std=c++1y -O2 -Wall
+COMP = g++ -lssl -lcrypto -std=c++1y -O2
 
 # Specify target
 all: network_test test_client

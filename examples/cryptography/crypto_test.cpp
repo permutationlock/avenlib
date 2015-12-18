@@ -18,8 +18,17 @@ int main(){
     ECDH test;
     
     std::string publicKey = test.getPublicKey();
-    
-    std::cout << base64Encode(publicKey);
+    std::cout << publicKey << "\n";
+    std::string keys = base64Encode(publicKey);
+    std::cout << base64Encode(publicKey) << "\n";
+    std::cout << keys.size() << "\n";
+    std::string backagain = base64Decode(keys);
+    std::cout << backagain << "\n";
+    test.recieveKey(backagain);
+    std::string secret = base64Encode(test.getSecret());
+    std::cout << secret << "\n";
+    std::cout << secret.size() << "\n";
+    std::cout << base64Decode(secret).size() << "\n";
     
     return 0;
 }

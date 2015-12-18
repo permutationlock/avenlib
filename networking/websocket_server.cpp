@@ -30,28 +30,28 @@ const std::string WebSocketConnection::_magicString = "258EAFA5-E914-47DA-95CA-C
 
 // Constructor, does any initializations necessary then calls parent constructor
 WebSocketConnection::WebSocketConnection(int socket, Server * server, const sockaddr & toAddress):
-  _handshake(false), TCPConnection(socket, server, toAddress){
-    //std::cout << "WEBSOCKET CREATED\n";
-}                                   
+  TCPConnection(socket, server, toAddress), _handshake(false) {}                                   
  
 // Send message via websocket protocol
-bool WebSocketConnection::sendMessage(const std::string & message){
+bool WebSocketConnection::sendMessage(const std::string & message, bool binary){
     if(!_handshake){
         // No handshake, cannot send via websocket
         return false;
     }
     
+    unsigned char opcode = binary ? 0x2 : 0x1;
+    
     unsigned int bytesSent = 0;
     while(bytesSent < message.size() && !_dead){
         if(bytesSent == 0){
             if(message.size() > USHRT_MAX){
-                if(!sendFrame(false, (unsigned char)(0x1), message.substr(0, USHRT_MAX))){
+                if(!sendFrame(false, opcode, message.substr(0, USHRT_MAX))){
                     return false;
                 }
                 bytesSent += USHRT_MAX;
             }
             else{
-                if(!sendFrame(true, (unsigned char)(0x1), message)){
+                if(!sendFrame(true, opcode, message)){
                     return false;
                 }
                 bytesSent += message.size();
@@ -81,9 +81,6 @@ bool WebSocketConnection::sendMessage(const std::string & message){
 void WebSocketConnection::loop(){
     //std::cout << "WEBSOCKET LOOP\n";
     const char *term=" \t\r\n";
-    
-    // State of message reception
-    int state = 0;
     
     // Frame info
     bool fin = false;
@@ -125,7 +122,6 @@ void WebSocketConnection::loop(){
             }
         }
         else{
-            //std::cout << "Reading frame info:\n";
             // Read first byte
             unsigned char byte;
             if(skt_recvN(_socket, &byte, sizeof(byte)) != 0){
@@ -139,12 +135,6 @@ void WebSocketConnection::loop(){
             fin = (byte >> 7);
             opcode = byte & 0xF; // We skip the three RSV bits
             
-            //std::bitset<8> binary(byte);
-            
-            //std::cout << binary << "\n";
-            //std::cout << "    fin = " << (int)fin << "\n";
-            //std::cout << "    opcode = " << (int)opcode << "\n";
-            
             if(skt_recvN(_socket, &byte, 1) != 0){
                 fail(); // Connection failure
             }
@@ -156,12 +146,9 @@ void WebSocketConnection::loop(){
             mask = byte >> 7;
             payloadLength = byte & 0x7F;
             
-            //std::cout << "    mask = " << (int)mask << "\n";
-            //std::cout << "    payloadLength = " << (int)payloadLength << "\n";
-            
             // Read extended payload length if necessary
             if(payloadLength > 125){
-                if(payloadLength = 126){
+                if(payloadLength == 126){
                     // Have to read bytes individually to fix byte endianness
                     unsigned char byte;
                     if(skt_recvN(_socket, &byte, 1) != 0){
@@ -189,8 +176,6 @@ void WebSocketConnection::loop(){
                 }
             }
             
-            //std::cout << "    amendedPayloadLength = " << (int)payloadLength << "\n";
-            
             // Read mask for masked data
             if(mask){
                 if(skt_recvN(_socket, &maskData, sizeof(maskData)) != 0){
@@ -214,7 +199,7 @@ void WebSocketConnection::loop(){
             if(mask){
                 // Treat maskData int as character array for masking
                 char * maskArray = (char *)(&maskData);
-                for(int i=0; i<payloadLength; i++){
+                for(std::size_t i=0; i<payloadLength; i++){
                     recieved[i] = recieved[i] ^ maskArray[i%4];
                 }
             }
@@ -279,62 +264,6 @@ void WebSocketConnection::loop(){
     }
 }
 
-// Encode string in base 64
-std::string WebSocketConnection::base64Encode(const std::string & str){
-    // BIO to perform base 64 encoding
-    BIO *b64 = BIO_new(BIO_f_base64());
-    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
-    
-    // Memory BIO to store results
-    BIO *mem = BIO_new(BIO_s_mem());
-    
-    // Connect base 64 conversion BIO to the memory BIO
-    BIO_push(b64, mem);
-    
-    // Encode data into BIO
-    bool done = false;
-    int res = 0;
-    
-    // Encode data via conversion BIO
-    while(!done){
-        res = BIO_write(b64, (unsigned char *)str.c_str(), str.size());
-
-        if(res <= 0){
-            if(BIO_should_retry(b64)){
-                continue;
-            }
-            else{
-                // Handle errors maybe...
-            }
-        }
-        else{
-            done = true;
-        }
-    }
-    
-    // Free BIO memory
-    BIO_flush(b64);
-    
-    // Grab pointer to results
-    unsigned char* data;
-    long length = BIO_get_mem_data(mem, &data);
-    
-    // Convert results to string
-    return std::string((char *)data, length);
-}
-
-// Compute sha1 hash of string
-std::string WebSocketConnection::sha1(const std::string & str){
-    // Buffer to store hash result
-    unsigned char obuf[20];
-
-    // Compute sha1 hash of input string
-    SHA1((unsigned char *)str.c_str(), str.size(), obuf);
-    
-    // Convert results to string
-    return std::string((char *)obuf, 20);
-}
-
 // Parse handshake and respond if correct
 bool WebSocketConnection::parseHandshake(const std::vector<std::string> & buffer){
     // Create error HTTP response
@@ -350,7 +279,7 @@ bool WebSocketConnection::parseHandshake(const std::vector<std::string> & buffer
     // Read request and organize by attribute name
     std::map<std::string, std::vector<std::string>> attributes;
     std::string header = "";
-    for(int i=3; i<buffer.size(); i++){
+    for(std::size_t i=3; i<buffer.size(); i++){
         if(buffer[i].back() == ':'){
             // Remove ':' from end and store key
             header = buffer[i].substr(0,buffer[i].size()-1);

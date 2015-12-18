@@ -106,6 +106,9 @@ public:
     // Kills this connection
     void kill();
     
+    // Checks the connection status
+    bool isDead();
+    
     // Destructor
     virtual ~Connection();
     

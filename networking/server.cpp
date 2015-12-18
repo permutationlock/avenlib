@@ -40,7 +40,7 @@ void Server::start(){
 
 // Stop server loop
 void Server::stop(){
-    if(_dead){
+    if(!_dead){
         _dead = true;
         _thread.join();
         std::thread temp;
@@ -159,8 +159,8 @@ std::string to_string(const sockaddr & addr){
  */
 
 // Constructor takes ptr to message handler
-Connection::Connection(int socket, Server * server, const sockaddr & toAddress): _socket(socket),
-  _server(server) {
+Connection::Connection(int socket, Server * server, const sockaddr & toAddress): _server(server), 
+  _socket(socket) {
     std::memcpy(&_toAddress, &toAddress, sizeof(sockaddr));
 }
 
