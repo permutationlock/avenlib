@@ -164,7 +164,7 @@ public:
     // Overloaded constructor to add address parameter
     UDPConnection(int socket, Server * server, const sockaddr & toAddress);
     
-    // Called to push messages to this connection
+    // Called by the server to push recieved messages to this connection
     void push(const std::string & message);
     
     // Send message to connection recipient
